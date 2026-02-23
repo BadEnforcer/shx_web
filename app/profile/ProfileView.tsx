@@ -1,13 +1,20 @@
 "use client"
 
 import { signOut } from "next-auth/react"
-import type { Session } from "next-auth"
+import { useSelector, useDispatch } from "react-redux"
+import { selectSession, clearSession } from "@/lib/store/slices/authSlice"
 
-interface ProfileViewProps {
-  session: Session
-}
+export function ProfileView() {
+  const session = useSelector(selectSession)
+  const dispatch = useDispatch()
 
-export function ProfileView({ session }: ProfileViewProps) {
+  if (!session) return null
+
+  async function handleSignOut() {
+    dispatch(clearSession())
+    await signOut({ callbackUrl: "/login" })
+  }
+
   return (
     <div className="max-w-2xl mx-auto mt-8 p-4">
       <h1 className="text-xl font-semibold mb-4">Profile</h1>
@@ -17,7 +24,7 @@ export function ProfileView({ session }: ProfileViewProps) {
       </pre>
       <button
         type="button"
-        onClick={() => signOut({ callbackUrl: "/login" })}
+        onClick={() => handleSignOut()}
         className="mt-4 border rounded px-3 py-2 bg-black text-white"
       >
         Logout

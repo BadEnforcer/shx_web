@@ -1,8 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { signIn } from "next-auth/react"
+import { signIn, getSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { useDispatch } from "react-redux"
+import { setSession, toAuthSession } from "@/lib/store/slices/authSlice"
 import Link from "next/link"
 import { z } from "zod"
 import { CredentialsSignin } from "next-auth"
@@ -12,18 +14,19 @@ import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldContent, FieldError } from "@/components/ui/field"
 
 const loginSchema = z.object({
-  email: z.string().email("Invalid email"),
+  email: z.email("Invalid email"),
   password: z.string().min(1, "Password is required"),
 })
 
 export function LoginForm() {
   const router = useRouter()
+  const dispatch = useDispatch()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
   const [message, setMessage] = useState<string | null>(null)
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
     setMessage(null)
     const parsed = loginSchema.safeParse({ email, password })
@@ -50,6 +53,8 @@ export function LoginForm() {
         return
       }
       if (result?.ok) {
+        const session = await getSession()
+        dispatch(setSession(toAuthSession(session)))
         router.push("/profile")
         router.refresh()
       }
