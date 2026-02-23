@@ -8,6 +8,8 @@ import { setSession, toAuthSession } from "@/lib/store/slices/authSlice"
 import Link from "next/link"
 import { z } from "zod"
 import { CredentialsSignin } from "next-auth"
+import { toast } from "sonner"
+import { Loader2 } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,11 +26,10 @@ export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
-  const [message, setMessage] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
-    setMessage(null)
     const parsed = loginSchema.safeParse({ email, password })
     if (!parsed.success) {
       const fieldErrors: { email?: string; password?: string } = {}
@@ -41,6 +42,7 @@ export function LoginForm() {
       return
     }
     setErrors({})
+    setIsSubmitting(true)
     try {
       const result = await signIn("credentials", {
         email: parsed.data.email,
@@ -49,21 +51,24 @@ export function LoginForm() {
         redirect: false,
       })
       if (result?.error) {
-        setMessage("Invalid email or password")
+        toast.error("Invalid email or password")
         return
       }
       if (result?.ok) {
         const session = await getSession()
         dispatch(setSession(toAuthSession(session)))
+        toast.success("Signed in")
         router.push("/profile")
         router.refresh()
       }
     } catch (err) {
       if (err instanceof CredentialsSignin) {
-        setMessage("Invalid email or password")
+        toast.error("Invalid email or password")
       } else {
-        setMessage("Something went wrong")
+        toast.error("Something went wrong")
       }
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -75,11 +80,6 @@ export function LoginForm() {
         </CardHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
           <CardContent className="flex flex-col gap-4">
-            {message && (
-              <p className="text-destructive text-sm" role="alert">
-                {message}
-              </p>
-            )}
             <Field>
               <FieldLabel htmlFor="login-email">Email</FieldLabel>
               <FieldContent>
@@ -87,7 +87,10 @@ export function LoginForm() {
                   id="login-email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }))
+                  }}
                   autoComplete="email"
                   aria-invalid={!!errors.email}
                 />
@@ -101,7 +104,10 @@ export function LoginForm() {
                   id="login-password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }))
+                  }}
                   autoComplete="current-password"
                   aria-invalid={!!errors.password}
                 />
@@ -110,8 +116,15 @@ export function LoginForm() {
             </Field>
           </CardContent>
           <CardFooter className="flex flex-col gap-3 pt-0">
-            <Button type="submit" className="w-full">
-              Log in
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin shrink-0" aria-hidden />
+                  Logging in…
+                </>
+              ) : (
+                "Log in"
+              )}
             </Button>
             <p className="text-muted-foreground text-sm text-center">
               Don&apos;t have an account?{" "}

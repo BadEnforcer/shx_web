@@ -1,12 +1,54 @@
 "use server"
 
+import { auth } from "@/auth"
 import { CredentialsSignin } from "next-auth"
-import type { AuthTokensResponseDto, LoginDto, RegisterDto } from "@/lib/types/auth"
+import type {
+  AuthTokensResponseDto,
+  LoginDto,
+  RegisterDto,
+  MeResponseDto,
+  MeApiResponse,
+} from "@/lib/types/auth"
 
 const getBaseUrl = () => {
-  const url = process.env.BACKEND_URL
+  const url = process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL
   if (!url) throw new Error("BACKEND_URL is not set")
   return url.replace(/\/$/, "")
+}
+
+/** Fetches current user and sessions from backend GET /api/users/me. */
+export async function getMeAction(): Promise<MeResponseDto | null> {
+  const session = await auth()
+  const token =
+    session?.accessToken ?? (session as { accessToken?: string })?.accessToken
+  if (!token) return null
+  try {
+    const baseUrl = getBaseUrl()
+    const res = await fetch(`${baseUrl}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+    if (!res.ok) return null
+    const data = (await res.json().catch(() => null)) as MeApiResponse | null
+    if (!data?.id) return null
+    console.log("[getMeAction] step: response body", data)
+    const me: MeResponseDto = {
+      user: {
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        emailVerified: data.emailVerified,
+        image: data.image,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+      },
+      sessions: data.sessions ?? [],
+      accounts: data.accounts ?? [],
+    }
+    return me
+  } catch {
+    return null
+  }
 }
 
 export async function loginAction(

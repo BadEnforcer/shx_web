@@ -5,6 +5,8 @@ import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { z } from "zod"
+import { toast } from "sonner"
+import { Loader2 } from "lucide-react"
 import { signupAction } from "@/lib/actions/auth"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -23,11 +25,10 @@ export function SignupForm() {
   const [name, setName] = useState("")
   const [password, setPassword] = useState("")
   const [errors, setErrors] = useState<{ email?: string; name?: string; password?: string }>({})
-  const [message, setMessage] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
-    setMessage(null)
     const parsed = signupSchema.safeParse({ email, name, password })
     if (!parsed.success) {
       const fieldErrors: { email?: string; name?: string; password?: string } = {}
@@ -40,6 +41,7 @@ export function SignupForm() {
       return
     }
     setErrors({})
+    setIsSubmitting(true)
     try {
       const res = await signupAction(parsed.data)
       const result = await signIn("credentials", {
@@ -49,15 +51,18 @@ export function SignupForm() {
         redirect: false,
       })
       if (result?.ok) {
+        toast.success("Account created")
         router.push("/profile")
         router.refresh()
       } else {
-        setMessage("Account created. Please log in.")
+        toast.success("Account created. Please log in.")
         router.push("/login")
         router.refresh()
       }
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Something went wrong")
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -69,11 +74,6 @@ export function SignupForm() {
         </CardHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
           <CardContent className="flex flex-col gap-4">
-            {message && (
-              <p className="text-destructive text-sm" role="alert">
-                {message}
-              </p>
-            )}
             <Field>
               <FieldLabel htmlFor="signup-name">Name</FieldLabel>
               <FieldContent>
@@ -81,7 +81,10 @@ export function SignupForm() {
                   id="signup-name"
                   type="text"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    setName(e.target.value)
+                    if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }))
+                  }}
                   autoComplete="name"
                   aria-invalid={!!errors.name}
                 />
@@ -95,7 +98,10 @@ export function SignupForm() {
                   id="signup-email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }))
+                  }}
                   autoComplete="email"
                   aria-invalid={!!errors.email}
                 />
@@ -109,7 +115,10 @@ export function SignupForm() {
                   id="signup-password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }))
+                  }}
                   autoComplete="new-password"
                   aria-invalid={!!errors.password}
                 />
@@ -118,8 +127,15 @@ export function SignupForm() {
             </Field>
           </CardContent>
           <CardFooter className="flex flex-col gap-3 pt-0">
-            <Button type="submit" className="w-full">
-              Sign up
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin shrink-0" aria-hidden />
+                  Signing up…
+                </>
+              ) : (
+                "Sign up"
+              )}
             </Button>
             <p className="text-muted-foreground text-sm text-center">
               Already have an account?{" "}
