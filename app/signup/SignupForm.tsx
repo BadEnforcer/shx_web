@@ -5,30 +5,32 @@ import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { z } from "zod"
-import { CredentialsSignin } from "next-auth"
+import { signupAction } from "@/lib/actions/auth"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldContent, FieldError } from "@/components/ui/field"
 
-const loginSchema = z.object({
-  email: z.string().email("Invalid email"),
+const signupSchema = z.object({
+  email: z.email("Invalid email"),
+  name: z.string().min(1, "Name is required"),
   password: z.string().min(1, "Password is required"),
 })
 
-export function LoginForm() {
+export function SignupForm() {
   const router = useRouter()
   const [email, setEmail] = useState("")
+  const [name, setName] = useState("")
   const [password, setPassword] = useState("")
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
+  const [errors, setErrors] = useState<{ email?: string; name?: string; password?: string }>({})
   const [message, setMessage] = useState<string | null>(null)
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
     setMessage(null)
-    const parsed = loginSchema.safeParse({ email, password })
+    const parsed = signupSchema.safeParse({ email, name, password })
     if (!parsed.success) {
-      const fieldErrors: { email?: string; password?: string } = {}
+      const fieldErrors: { email?: string; name?: string; password?: string } = {}
       parsed.error.issues.forEach((err) => {
         const path = err.path[0] as string
         if (path in fieldErrors) return
@@ -39,26 +41,23 @@ export function LoginForm() {
     }
     setErrors({})
     try {
+      const res = await signupAction(parsed.data)
       const result = await signIn("credentials", {
-        email: parsed.data.email,
+        email: res.user.email,
         password: parsed.data.password,
         callbackUrl: "/profile",
         redirect: false,
       })
-      if (result?.error) {
-        setMessage("Invalid email or password")
-        return
-      }
       if (result?.ok) {
         router.push("/profile")
         router.refresh()
+      } else {
+        setMessage("Account created. Please log in.")
+        router.push("/login")
+        router.refresh()
       }
     } catch (err) {
-      if (err instanceof CredentialsSignin) {
-        setMessage("Invalid email or password")
-      } else {
-        setMessage("Something went wrong")
-      }
+      setMessage(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -66,7 +65,7 @@ export function LoginForm() {
     <div className="min-h-[calc(100vh-2rem)] flex flex-col items-center justify-center px-4 py-8">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Log in</CardTitle>
+          <CardTitle>Sign up</CardTitle>
         </CardHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
           <CardContent className="flex flex-col gap-4">
@@ -76,10 +75,24 @@ export function LoginForm() {
               </p>
             )}
             <Field>
-              <FieldLabel htmlFor="login-email">Email</FieldLabel>
+              <FieldLabel htmlFor="signup-name">Name</FieldLabel>
               <FieldContent>
                 <Input
-                  id="login-email"
+                  id="signup-name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  autoComplete="name"
+                  aria-invalid={!!errors.name}
+                />
+                <FieldError>{errors.name}</FieldError>
+              </FieldContent>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="signup-email">Email</FieldLabel>
+              <FieldContent>
+                <Input
+                  id="signup-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -90,14 +103,14 @@ export function LoginForm() {
               </FieldContent>
             </Field>
             <Field>
-              <FieldLabel htmlFor="login-password">Password</FieldLabel>
+              <FieldLabel htmlFor="signup-password">Password</FieldLabel>
               <FieldContent>
                 <Input
-                  id="login-password"
+                  id="signup-password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   aria-invalid={!!errors.password}
                 />
                 <FieldError>{errors.password}</FieldError>
@@ -106,12 +119,12 @@ export function LoginForm() {
           </CardContent>
           <CardFooter className="flex flex-col gap-3 pt-0">
             <Button type="submit" className="w-full">
-              Log in
+              Sign up
             </Button>
             <p className="text-muted-foreground text-sm text-center">
-              Don&apos;t have an account?{" "}
-              <Link href="/signup" className="text-primary underline-offset-4 hover:underline">
-                Sign up
+              Already have an account?{" "}
+              <Link href="/login" className="text-primary underline-offset-4 hover:underline">
+                Log in
               </Link>
             </p>
           </CardFooter>
